@@ -100,7 +100,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
                                dname, ", Lag = ",lagnum)))
     
     #print table to viewer
-    mars0 %>% 
+    lagdat %>% 
       dplyr::mutate(lag1 = lag(area)) %>%
       dplyr::select(area, lag1, Condition) %>%
       table() %>%
@@ -248,6 +248,7 @@ lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Mode
     
     fit.out <- anova(fit, test="Chisq")
     
+    #prints to console if requested
     #suppressWarnings(print(broom::tidy(fit.out)))
     
     suppressWarnings(
