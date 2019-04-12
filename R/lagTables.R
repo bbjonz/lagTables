@@ -101,28 +101,28 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
     
     #print table to viewer
     lagdat %>% 
-      dplyr::mutate(lag1 = lag(area)) %>%
-      dplyr::select(area, lag1, Condition) %>%
+      dplyr::mutate(lag1 = lag(lagvar)) %>%
+      dplyr::select(lagvar, lag1, Condition) %>%
       table() %>%
       apply(3, chisq.test, simulate.p.value = TRUE) %>%
       lapply(`[`, c(6,7,9)) %>%
       reshape2::melt() %>%
       tidyr::spread(key = L2, value = value) %>%
       dplyr::rename(Condition = L1) %>%
-      dplyr::arrange(Condition, area, lag1) %>%
-      dplyr::group_by(Condition, area) %>%
+      dplyr::arrange(Condition, lagvar, lag1) %>%
+      dplyr::group_by(Condition, lagvar) %>%
       dplyr::mutate(trprob = observed/sum(observed)) %>%
       dplyr::mutate(obsexp = paste0(observed,"<br>(",round(expected,2),")")) %>%
       dplyr::mutate(tpsres = paste0(round(stdres,2),"<br>(",round(trprob,2),")")) %>%
       assign("stats.out",.,envir = .GlobalEnv) %>%
-      dplyr::select(lag1, area, Condition, obsexp) %>%
-      reshape2::acast(., area ~ lag1 ~ Condition ) %>%
+      dplyr::select(lag1, lagvar, Condition, obsexp) %>%
+      reshape2::acast(., lagvar ~ lag1 ~ Condition ) %>%
       tbl_df() %>% 
       as.data.frame() -> top.dat
     
     stats.out %>%
-      dplyr::select(lag1, area, Condition, tpsres) %>%
-      reshape2::acast(., area ~ lag1 ~ Condition ) %>%
+      dplyr::select(lag1, lagvar, Condition, tpsres) %>%
+      reshape2::acast(., lagvar ~ lag1 ~ Condition ) %>%
       tbl_df() %>% 
       as.data.frame() -> bot.dat
     
