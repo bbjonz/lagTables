@@ -248,9 +248,11 @@ lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Mode
     
     fit.out <- anova(fit, test="Chisq")
     
+    #suppressWarnings(print(broom::tidy(fit.out)))
+    
     suppressWarnings(
       broom::tidy(fit.out) %>%
-        knitr::kable(digits = 2, align=c("l",rep("c",5)), 
+        knitr::kable(digits = 2, align=c("l",rep("c",5)),
                      col.names = c("Model",
                                    "Model df",
                                    "Deviance",
@@ -266,7 +268,7 @@ lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Mode
     
     lag.counts <- d %>%
       dplyr::select(lagcol, laggroup) %>%
-      dplyr::mutate_at(vars(lagcol), funs_(lag_functions)) %>%
+      dplyr::mutate_at(dplyr::vars(lagcol), dplyr::funs_(lag_functions)) %>%
       dplyr::rename(lag0 = lagcol) %>%
       dplyr::group_by_all() %>%
       dplyr::summarise(freq = n()) %>%
@@ -283,7 +285,7 @@ lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Mode
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
     lag.counts %>%
-      dplyr::arrange_at(vars(one_of(laggroup))) %>%
+      dplyr::arrange_at(dplyr::vars(dplyr::one_of(laggroup))) %>%
       na.omit() %>%
       tidyr::nest(-laggroup) %>%
       dplyr::mutate(
@@ -291,7 +293,7 @@ lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Mode
                               glm(lag.form, family = poisson, data = .x) %>%
                               anova(., test = "Chisq") %>% 
                               broom::tidy(.))) %>% 
-      unnest(tidied) %>%
+      tidyr::unnest(tidied) %>%
       knitr::kable(digits = 2, 
                    col.names = c(laggroup,
                                  "Model",
