@@ -2,7 +2,6 @@
 #' 
 #' This function works with a vector of sequential data and creates
 #' html tables for the observed and expected frequencies, as well
-#' as the transitional probabilities and standardized residuals
 #' 
 #' If requested, it will create bar plots of standardized residuals
 #' for transitional probs (Lehmann-Willenbrock, 2013)
@@ -85,45 +84,45 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
         lapply(`[`, c(9)) %>%
         reshape2::melt() %>%
         tidyr::spread(key = L2, value = value) %>%
-        dplyr::rename(Condition = L1) %>%
-        dplyr::select(Condition, lag, raw, stdres) %>%
-        dplyr::arrange(Condition) %>%
-        ggplot2::ggplot(aes(x=lag, y=stdres, fill=Condition)) +
-        ggplot2::geom_bar(stat='identity', position=position_dodge(), width = .5) +
+        dplyr::rename(Group = L1) %>%
+        dplyr::select(Group, lag, raw, stdres) %>%
+        dplyr::arrange(Group) %>%
+        ggplot2::ggplot(ggplot2::aes(x=lag, y=stdres, fill=Group)) +
+        ggplot2::geom_bar(stat='identity', position=ggplot2::position_dodge(), width = .5) +
         ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
         ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
         ggplot2::coord_flip() +
         ggplot2::facet_wrap(~ raw) +
         ggplot2::scale_fill_grey() +
-        ggplot2::labs(y="Standardized Residuals", x = "", fill = "Condition",
+        ggplot2::labs(y="Standardized Residuals", x = "", fill = "Group",
                 title = paste0("Standardized Residuals For All Comment Types, Data = ", 
                                dname, ", Lag = ",lagnum)))
     
     #print table to viewer
     lagdat %>% 
-      dplyr::mutate(lag1 = lag(lagvar)) %>%
-      dplyr::select(lagvar, lag1, Condition) %>%
+      dplyr::mutate(lag1 = lag(raw)) %>%
+      dplyr::select(raw, lag1, laggroup) %>%
       table() %>%
       apply(3, chisq.test, simulate.p.value = TRUE) %>%
       lapply(`[`, c(6,7,9)) %>%
       reshape2::melt() %>%
       tidyr::spread(key = L2, value = value) %>%
       dplyr::rename(Condition = L1) %>%
-      dplyr::arrange(Condition, lagvar, lag1) %>%
-      dplyr::group_by(Condition, lagvar) %>%
+      dplyr::arrange(Condition, raw, lag1) %>%
+      dplyr::group_by(Condition, raw) %>%
       dplyr::mutate(trprob = observed/sum(observed)) %>%
       dplyr::mutate(obsexp = paste0(observed,"<br>(",round(expected,2),")")) %>%
       dplyr::mutate(tpsres = paste0(round(stdres,2),"<br>(",round(trprob,2),")")) %>%
       assign("stats.out",.,envir = .GlobalEnv) %>%
-      dplyr::select(lag1, lagvar, Condition, obsexp) %>%
-      reshape2::acast(., lagvar ~ lag1 ~ Condition ) %>%
-      tbl_df() %>% 
+      dplyr::select(lag1, raw, Condition, obsexp) %>%
+      reshape2::acast(., raw ~ lag1 ~ Condition ) %>%
+      dplyr::tbl_df() %>% 
       as.data.frame() -> top.dat
     
     stats.out %>%
-      dplyr::select(lag1, lagvar, Condition, tpsres) %>%
-      reshape2::acast(., lagvar ~ lag1 ~ Condition ) %>%
-      tbl_df() %>% 
+      dplyr::select(lag1, raw, Condition, tpsres) %>%
+      reshape2::acast(., raw ~ lag1 ~ Condition ) %>%
+      dplyr::tbl_df() %>% 
       as.data.frame() -> bot.dat
     
     lagout <- rbind(top.dat, bot.dat)
@@ -176,12 +175,12 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
         sres %>%
           as.data.frame() %>%
           dplyr::group_by(Var1) %>%
-          ggplot2::ggplot(aes(x=Var2, y=Freq, fill=Var2)) +
+          ggplot2::ggplot(ggplot2::aes(x=Var2, y=Freq, fill=Var2)) +
           ggplot2::geom_bar(stat='identity', width = .5) +
           ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
           ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
           ggplot2::coord_flip() +
-          ggplot2::facet_wrap(~ Var1, labeller = labeller(Var1=better_label)) +
+          ggplot2::facet_wrap(~ Var1, labeller = ggplot2::labeller(Var1=better_label)) +
           ggplot2::scale_fill_grey() +
           ggplot2::labs(y="Standardized Residuals", x = "", fill = "Comment\nType",
                         title = paste0("Standardized Residuals For All Comment Types, Data = ", dname, ", Lag = ",lagnum))
