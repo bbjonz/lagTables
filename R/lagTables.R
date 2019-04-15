@@ -22,7 +22,7 @@
 
 trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive Stats", lagnum=1, plots=0, dname="") {
   
-  options(scipen = 999)
+  options(scipen = 999, warn = -1)
   
   d <- as.data.frame(d, stringsAsFactors=FALSE)
   
@@ -68,7 +68,8 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
     #gets dynamic 2nd header info
     #see last comment in: https://stackoverflow.com/questions/45206908/kableextra-dynamic-add-header-above-labeling
     groupnames <- sub("(.)", "\\U\\1", groupnames, perl=TRUE)
-    tablecols <- rep(numcodes,2)
+    tablecols <- rep(numcodes,numgroupcodes)
+    print(tablecols)
     names(tablecols) <- c(groupnames)
     
     lagdat <- d %>%
@@ -129,11 +130,11 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
     lagout <- cbind(rep(codenames, 2),lagout)
     
     lagout %>%
-      knitr::kable(caption = paste0(title, ", Lag = ", lagnum), digits=2, format = "html", escape = F, align=rep('c', numcodes), col.names = c("",rep(codenames,2))) %>%
+      knitr::kable(caption = paste0(title, ", Lag = ", lagnum), digits=2, format = "html", escape = F, align=rep('c', numcodes), col.names = c("",rep(codenames,numgroupcodes))) %>%
       kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)  %>%
       kableExtra::add_header_above(c("", tablecols)) %>%
       kableExtra::group_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
-      kableExtra::group_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2)
+      kableExtra::group_rows("Standardized Residuals\n(Transitional Probablities)", numcodes+1, numcodes*2)
     
     #IF NO GROUP VARIABLE
   } else {
@@ -192,7 +193,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
       knitr::kable(caption = paste0(title, ", Lag = ", lagnum), digits=2, format = "html", escape = F, align=rep('c', numcodes), col.names = c(rep(codenames,1))) %>%
       kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)  %>%
       kableExtra::group_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
-      kableExtra::group_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2)
+      kableExtra::group_rows("Standardized Residuals\n(Transitional Probablities)", numcodes+1, numcodes*2)
   }
   #End function 
 }
@@ -211,7 +212,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
 
 lagmodels <- function(d, lagcol, laggroup, title="Lag Sequential Log Linear Models", lagnum=1) {
   
-  options(scipen = 999)
+  options(scipen = 999, warn = -1)
   
   if(length(lagcol)==0) {stop("The variable does not exist in your data frame")}
   
