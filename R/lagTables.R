@@ -20,7 +20,8 @@
 #' @return Table with tables for the observed and expected frequencies, as well as the transitional probabilities and standardized residuals.  Bar plots if requested
 #' @export
 
-trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive Stats", lagnum=1, plots=0, dname="") {
+trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
+                    title="Lag Sequential Descriptive Stats") {
   
   options(scipen = 999, warn = -1)
   
@@ -30,175 +31,153 @@ trprobs <- function(d, lagvar, laggroup=NULL, title="Lag Sequential Descriptive 
   
   `%>%` <- magrittr::`%>%`
   
-  #get number of unique codes in dataset
-  d %>%
-    dplyr::select(lagvar) %>%
-    na.omit() %>%
-    dplyr::n_distinct(.) -> numcodes
-  
-  d %>%
-    na.omit() %>%
-    dplyr::arrange_at(., lagvar) %>%
-    dplyr::select(lagvar) %>%
-    dplyr::distinct() %>%
-    unlist() -> codenames
-  
-  #get better facet labels for plots
-  better_label <- function(string) {
-    string <- paste0("Comments following ",string)
-  }
-  
-  #IF GROUPING VARIABLE
+  ####IF GROUPING VARIABLE ####
   if(length(d[laggroup])!=0) {
     
-    #get number of groups
-    d %>%
-      dplyr::select(laggroup) %>%
-      na.omit() %>%
-      dplyr::n_distinct(.) -> numgroupcodes
-    
-    #get group names
-    d %>%
-      na.omit() %>%
-      dplyr::arrange_at(., laggroup) %>%
-      dplyr::select(laggroup) %>%
-      dplyr::distinct() %>%
-      unlist() -> groupnames
-    
-    #gets dynamic 2nd header info
-    #see last comment in: https://stackoverflow.com/questions/45206908/kableextra-dynamic-add-header-above-labeling
-    groupnames <- sub("(.)", "\\U\\1", groupnames, perl=TRUE)
-    tablecols <- rep(numcodes,numgroupcodes)
-    names(tablecols) <- c(groupnames)
-    
     lagdat <- d %>%
-      dplyr::select(lagvar, laggroup) %>%
-      dplyr::rename(raw = lagvar) %>%
-      dplyr::mutate(lag = dplyr::lag(raw, lagnum)) 
+      dplyr::rename(lag0 = lagvar, group=laggroup)
+    
+    #https://gist.github.com/drsimonj/2038ff9f9c67063f384f10fac95de566
+    #gets lags without using data.table...
+    lag_functions <- setNames(paste("dplyr::lag(., ", 1:lagnum, ")"), 
+                              paste("lag", formatC(1:lagnum, 
+                                                   width = nchar(max(lags)), 
+                                                   flag = "0"), sep = ""))
+    lagdat %>% 
+      mutate_at(vars(lag0), funs_(lag_functions)) %>% 
+      as.data.frame() %>% 
+      group_by(group) %>%
+      dplyr::select(contains("lag")) %>%
+      ftable(xtabs(, data=.)) %>% 
+      as.matrix() %>% 
+      chisq.test(, simulate.p.value = TRUE) -> lag.tab
+    
+    obs <- as.data.frame(lag.tab$observed)
+    expect <- DescTools::Format(as.data.frame(lag.tab$expected),leading = "drop", digits = 2)
+    stdres <- DescTools::Format(as.data.frame(lag.tab$stdres), leading = "drop", digits =2)
+    tr <- DescTools::Format(as.data.frame(obs/rowSums(obs)), leading = "drop", digits =2)
+    
+    mypaste <- function(x,y) paste(x, "<br>(", y, ")", sep="")
+    
+    obs.exp <- mapply(mypaste, obs, expect) 
+    
+    tr.std <- mapply(mypaste, tr, stdres) 
+    
+    rownames(tr.std) <- rownames(obs.exp) <- rownames(obs)
+    
+    numcodes <- nrow(obs.exp)
     
     print(
-      lagdat %>%
-        dplyr::select(lag, raw, laggroup) %>%
-        table() %>%
-        apply(3, chisq.test, simulate.p.value = TRUE) %>%
-        lapply(`[`, c(9)) %>%
-        reshape2::melt() %>%
-        tidyr::spread(key = L2, value = value) %>%
-        dplyr::rename(Group = L1) %>%
-        dplyr::select(Group, lag, raw, stdres) %>%
-        dplyr::arrange(Group) %>%
-        ggplot2::ggplot(ggplot2::aes(x=lag, y=stdres, fill=Group)) +
-        ggplot2::geom_bar(stat='identity', position=ggplot2::position_dodge(), width = .5) +
-        ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
-        ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
-        ggplot2::coord_flip() +
-        ggplot2::facet_wrap(~ raw) +
-        ggplot2::scale_fill_grey() +
-        ggplot2::labs(y="Standardized Residuals", x = "", fill = "Group",
-                title = paste0("Standardized Residuals For All Comment Types, Data = ", 
-                               dname, ", Lag = ",lagnum)))
+      data.frame(tempcol = row.names(rbind(obs.exp, tr.std)), rbind(obs.exp, tr.std)) %>% 
+        tibble::as.tibble() %>% 
+        tibble::remove_rownames() %>% 
+        tidyr::separate(tempcol, c("Group","Previous Unit(s)"), sep="_", extra="merge") %>%
+        dplyr::mutate(`Previous Unit(s)` = str_replace(`Previous Unit(s)`, "_", "-->")) %>% 
+        knitr::kable(caption=paste0("Lag ", n, "Transition Probabilities By Group"), 
+                     escape = F) %>%
+        kableExtra::kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>% 
+        kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
+        kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2) %>% 
+        kableExtra::collapse_rows(columns = 1, valign = "top") %>% 
+        kableExtra::add_header_above(c(" " = 2, "Target Unit" = ncol(obs.exp)))
+    )
     
-    #print table to viewer
-    lagdat %>% 
-      dplyr::mutate(lag1 = lag(raw)) %>%
-      dplyr::select(raw, lag1, laggroup) %>%
-      table() %>%
-      apply(3, chisq.test, simulate.p.value = TRUE) %>%
-      lapply(`[`, c(6,7,9)) %>%
-      reshape2::melt() %>%
-      tidyr::spread(key = L2, value = value) %>%
-      dplyr::rename(Condition = L1) %>%
-      dplyr::arrange(Condition, raw, lag1) %>%
-      dplyr::group_by(Condition, raw) %>%
-      dplyr::mutate(trprob = observed/sum(observed)) %>%
-      dplyr::mutate(obsexp = paste0(observed,"<br>(",round(expected,2),")")) %>%
-      dplyr::mutate(tpsres = paste0(round(stdres,2),"<br>(",round(trprob,2),")")) %>%
-      assign("stats.out",.,envir = .GlobalEnv) %>%
-      dplyr::select(lag1, raw, Condition, obsexp) %>%
-      reshape2::acast(., raw ~ lag1 ~ Condition ) %>%
-      dplyr::tbl_df() %>% 
-      as.data.frame() -> top.dat
-    
-    print(stats.out)
-    
-    stats.out %>%
-      dplyr::select(lag1, raw, Condition, tpsres) %>%
-      reshape2::acast(., raw ~ lag1 ~ Condition ) %>%
-      dplyr::tbl_df() %>% 
-      as.data.frame() -> bot.dat
-    
-    lagout <- rbind(top.dat, bot.dat)
-    lagout <- cbind(rep(codenames, 2),lagout)
-    
-    lagout %>%
-      knitr::kable(caption = paste0(title, ", Lag = ", lagnum), digits=2, 
-                   format = "html", escape = F, align=rep('c', numcodes), 
-                   col.names = c("",rep(codenames,numgroupcodes))) %>%
-      kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)  %>%
-      kableExtra::add_header_above(c("", tablecols)) %>%
-      kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
-      kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)", 
-                            numcodes+1, numcodes*2)
-    
-    #IF NO GROUP VARIABLE
-  } else {
-    
-    lagdat <- d %>%
-      dplyr::select(lagvar) %>%
-      dplyr::rename(raw = lagvar) %>%
-      dplyr::mutate(lag = dplyr::lag(raw, lagnum)) 
-    
-    #function for trans prob matrixy
-    trans.matrix <- function(X, prob=T)
-    {
-      tt <- X
-      if(prob) tt <- tt / rowSums(tt)
-      round(tt,2)
-    }
-    
-    transp <- trans.matrix(chisq.test(table(lagdat$lag, lagdat$raw), simulate.p.value = TRUE)$observed)
-    obs <- chisq.test(table(lagdat$lag, lagdat$raw), simulate.p.value = TRUE)$observed
-    exp <- chisq.test(table(lagdat$lag, lagdat$raw), simulate.p.value = TRUE)$expected
-    sres <- chisq.test(table(lagdat$lag, lagdat$raw), simulate.p.value = TRUE)$stdres
-    
-    obexp <- rbind(as.data.frame.matrix(obs), 
-                   DescTools::Format(as.data.frame.matrix(transp),
-                                     leading = "drop", digits = 2))
-    
-    psres <- rbind(DescTools::Format(as.data.frame.matrix(exp), digits=2), 
-                   DescTools::Format(as.data.frame.matrix(sres), digits=2))
-    
-    mypaste <- function(x,y) paste0(x, "<br>(", y, ")")
-    
-    lagout <- mapply(mypaste, obexp, psres)
-    
-    rownames(lagout) <- rep(colnames(obs),2)
-    
-    #provide plots if requested
+    #plot if requested
     if(plots>0) {  
       print(
-        sres %>%
+        lag.tab$stdres %>%
+          as.table() %>% 
           as.data.frame() %>%
-          dplyr::group_by(Var1) %>%
+          dplyr::rename(tempcol = 1, Var2 = 2) %>% 
+          tidyr::separate(tempcol, c("Group", "Var1"), sep="_", extra="merge") %>%
+          group_by(Var1) %>% 
           ggplot2::ggplot(ggplot2::aes(x=Var2, y=Freq, fill=Var2)) +
-          ggplot2::geom_bar(stat='identity', width = .5) +
+          ggplot2::geom_bar(stat='identity', width = .1) +
           ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
           ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
           ggplot2::coord_flip() +
-          ggplot2::facet_wrap(~ Var1, labeller = ggplot2::labeller(Var1=better_label)) +
+          ggplot2::facet_grid(Group ~ Var1) +
           ggplot2::scale_fill_grey() +
-          ggplot2::labs(y="Standardized Residuals", x = "", fill = "Comment\nType",
-                        title = paste0("Standardized Residuals For All Comment Types, Data = ", dname, ", Lag = ",lagnum))
+          ggplot2::labs(y="", x = "", fill = "Unit\nType",
+                        title = paste0("Standardized Residuals For All Units"))
       )
     }
     
-    #print table to viewer
-    lagout %>% 
-      knitr::kable(caption = paste0(title, ", Lag = ", lagnum), digits=2, format = "html", escape = F, align=rep('c', numcodes), col.names = c(rep(codenames,1))) %>%
-      kableExtra::kable_styling(bootstrap_options = "striped", full_width = FALSE)  %>%
-      kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
-      kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2)
-  }
+    ####IF NO GROUP VARIABLE, PROCESS DATA WITHOUT GROUPS####
+  } else {
+    
+    lagdat <- d %>%
+      dplyr::rename(lag0 = lagvar)
+
+    #https://gist.github.com/drsimonj/2038ff9f9c67063f384f10fac95de566
+    lag_functions <- setNames(paste("dplyr::lag(., ", 1:lagnum, ")"), 
+                              paste("lag", formatC(1:lagnum, 
+                                                   width = nchar(max(lags)), 
+                                                   flag = "0"), sep = ""))
+    lagdat %>% 
+      mutate_at(vars(lag0), funs_(lag_functions)) %>% 
+      as.data.frame() %>% 
+      #group_by(Condition) %>%
+      dplyr::select(contains("lag")) %>%
+      ftable(xtabs(, data=.)) %>% 
+      as.matrix() %>% 
+      chisq.test(, simulate.p.value = TRUE) -> lag.tab
+        
+    obs <- as.data.frame(lag.tab$observed)
+    expect <- DescTools::Format(as.data.frame(lag.tab$expected),leading = "drop", digits = 2)
+    stdres <- DescTools::Format(as.data.frame(lag.tab$stdres), leading = "drop", digits =2)
+    tr <- DescTools::Format(as.data.frame(obs/rowSums(obs)), leading = "drop", digits =2)
+    
+    mypaste <- function(x,y) paste(x, "<br>(", y, ")", sep="")
+    
+    obs.exp <- mapply(mypaste, obs, expect) 
+    
+    tr.std <- mapply(mypaste, tr, stdres) 
+    
+    rownames(tr.std) <- rownames(obs.exp) <- rownames(obs)
+    
+    #data.frame(tempcol = row.names(obs.exp), obs.exp) %>% 
+     # separate(tempcol, c("Group","Comment"))
+    
+    numcodes <- nrow(obs.exp)
+    
+    print(
+      data.frame(tempcol = row.names(rbind(obs.exp, tr.std)), rbind(obs.exp, tr.std)) %>% 
+        tibble::as.tibble() %>% 
+        tibble::remove_rownames() %>%
+        dplyr::mutate(tempcol = str_replace(tempcol, "_", "-->")) %>% 
+        dplyr::rename("Previous Unit(s)"=tempcol) %>% 
+        knitr::kable(caption=paste0("Lag ", lagnum, " Transition Probabilities"), 
+                     escape = F) %>%
+        kableExtra::kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>% 
+        kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
+        kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2) %>% 
+        kableExtra::add_header_above(c(" " = 1, "Target Unit" = ncol(obs.exp)))
+    )
+    
+    
+    #plot if requested
+    if(plots>0) {  
+      print(
+    lag.tab$stdres %>%
+      as.table() %>% 
+      as.data.frame() %>%
+      dplyr::rename(Var1 = 1, Var2 = 2) %>% 
+      dplyr::group_by(Var1) %>% 
+      ggplot2::ggplot(ggplot2::aes(x=Var2, y=Freq, fill=Var2)) +
+      ggplot2::geom_bar(stat='identity', width = .5) +
+      ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
+      ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
+      ggplot2::coord_flip() +
+      ggplot2::facet_wrap(~ Var1) +
+      ggplot2::scale_fill_grey() +
+      ggplot2::labs(y="Standardized Residuals", x = "", fill = "Comment\nType",
+                    title = paste0("Standardized Residuals For All Comment Types"))
+      )
+    }
+    
+    
+    }
   #End function 
 }
 
