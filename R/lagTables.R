@@ -41,7 +41,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
     #gets lags without using data.table...
     lag_functions <- setNames(paste("dplyr::lag(., ", 1:lagnum, ")"), 
                               paste("lag", formatC(1:lagnum, 
-                                                   width = nchar(max(lags)), 
+                                                   width = nchar(max(1:lagnum)), 
                                                    flag = "0"), sep = ""))
     lagdat %>% 
       mutate_at(vars(lag0), funs_(lag_functions)) %>% 
@@ -112,7 +112,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
     #https://gist.github.com/drsimonj/2038ff9f9c67063f384f10fac95de566
     lag_functions <- setNames(paste("dplyr::lag(., ", 1:lagnum, ")"), 
                               paste("lag", formatC(1:lagnum, 
-                                                   width = nchar(max(lags)), 
+                                                   width = nchar(max(1:lagnum)), 
                                                    flag = "0"), sep = ""))
     lagdat %>% 
       mutate_at(vars(lag0), funs_(lag_functions)) %>% 
