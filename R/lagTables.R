@@ -73,7 +73,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
         tibble::remove_rownames() %>% 
         tidyr::separate(tempcol, c("Group","Previous Unit(s)"), sep="_", extra="merge") %>%
         dplyr::mutate(`Previous Unit(s)` = str_replace(`Previous Unit(s)`, "_", "-->")) %>% 
-        knitr::kable(caption=paste0("Lag ", n, "Transition Probabilities By Group"), 
+        knitr::kable(caption=paste0("Lag ", lagnum, "Transition Probabilities By Group"), 
                      escape = F) %>%
         kableExtra::kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>% 
         kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
