@@ -68,19 +68,29 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
     numcodes <- nrow(obs.exp)
     
     print(
-      data.frame(tempcol = row.names(rbind(obs.exp, tr.std)), rbind(obs.exp, tr.std)) %>% 
+      data.frame(tempcol = row.names(rbind(obs.exp, tr.std)), 
+                 rbind(obs.exp, tr.std)) %>% 
         tibble::as.tibble() %>% 
         tibble::remove_rownames() %>% 
-        tidyr::separate(tempcol, c("Group","Previous Unit(s)"), sep="_", extra="merge") %>%
-        dplyr::mutate(`Previous Unit(s)` = str_replace(`Previous Unit(s)`, "_", "-->")) %>% 
+        tidyr::separate(tempcol, c("Group","Previous Unit(s)"), 
+                        sep="_", extra="merge") %>%
+        dplyr::mutate(`Previous Unit(s)` = str_replace(`Previous Unit(s)`, "_",
+                                                       "&#8594;")) %>% 
         knitr::kable(caption=paste0("Lag ", lagnum, "Transition Probabilities By Group"), 
                      escape = F) %>%
-        kableExtra::kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>% 
-        kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1, numcodes) %>%
-        kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)", numcodes+1, numcodes*2) %>% 
+        kableExtra::kable_styling(bootstrap_options = c("striped", "hover"),
+                                  full_width = F) %>% 
+        kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1,
+                              numcodes) %>%
+        kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)",
+                              numcodes+1, numcodes*2) %>% 
         kableExtra::collapse_rows(columns = 1, valign = "top") %>% 
         kableExtra::add_header_above(c(" " = 2, "Target Unit" = ncol(obs.exp)))
     )
+    
+    plotmargin <- round(abs(max(lag.tab$stdres)))
+    print(plotmargin)
+    print(lag.tab$stdres)
     
     #plot if requested
     if(plots>0) {  
@@ -92,12 +102,16 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
           tidyr::separate(tempcol, c("Group", "Var1"), sep="_", extra="merge") %>%
           group_by(Var1) %>% 
           ggplot2::ggplot(ggplot2::aes(x=Var2, y=Freq, fill=Var2)) +
-          ggplot2::geom_bar(stat='identity', width = .1) +
+          ggplot2::geom_bar(stat='identity', width = .4) +
           ggplot2::geom_hline(yintercept = 1.96, linetype="dashed") +
           ggplot2::geom_hline(yintercept = -1.96, linetype="dashed") +
           ggplot2::coord_flip() +
+          #ggplot2::geom_text(aes(label=Var2, hjust=ifelse(Freq >= 0, -.1, 1.1))) +
           ggplot2::facet_grid(Group ~ Var1) +
           ggplot2::scale_fill_grey() +
+         # ggplot2::scale_y_continuous(name="", breaks=c(-1.96,1.96),
+          #                   labels = c("-1.96","1.96"),
+           #                  limits = c(plotmargin*-1-4,plotmargin+4)) +
           ggplot2::labs(y="", x = "", fill = "Unit\nType",
                         title = paste0("Standardized Residuals For All Units"))
       )
@@ -145,7 +159,7 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
       data.frame(tempcol = row.names(rbind(obs.exp, tr.std)), rbind(obs.exp, tr.std)) %>% 
         tibble::as.tibble() %>% 
         tibble::remove_rownames() %>%
-        dplyr::mutate(tempcol = str_replace(tempcol, "_", "-->")) %>% 
+        dplyr::mutate(tempcol = str_replace(tempcol, "_", "&#8594;")) %>% 
         dplyr::rename("Previous Unit(s)"=tempcol) %>% 
         knitr::kable(caption=paste0("Lag ", lagnum, " Transition Probabilities"), 
                      escape = F) %>%
@@ -210,6 +224,7 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
   #define magrittr pipe
   `%>%` <- magrittr::`%>%`
   
+#####Group NOT Specified#####
   if(missing(laggroup)) {
     
     #print("In non-group loop")
@@ -245,7 +260,7 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
                                    "p value")) %>%
         kableExtra::kable_styling(full_width = F))
     
-    #Use this loop if group condition specified
+#####Group Specified#####
   } else {
     
     if(length(laggroup)==0) {stop("The group variable does not exist in your data frame")}
@@ -263,9 +278,9 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
     
     lag.counts %>%
       dplyr::select(-freq, -laggroup) -> lag.names
-    
-    lag.form <- as.formula(paste("freq", paste(colnames(lag.names), collapse=" * "), sep="~"))
-    
+  
+    lag.form <- as.formula(paste("freq", paste(colnames(lag.names), 
+                                               collapse=" * "), sep="~"))
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
     lag.counts %>%
@@ -278,6 +293,8 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
                               anova(., test = "Chisq") %>% 
                               broom::tidy(.))) %>% 
       tidyr::unnest(tidied) %>%
+      select(-data) %>% #removes the data column
+      
       knitr::kable(digits = 2, 
                    col.names = c(laggroup,
                                  "Model",
@@ -285,7 +302,7 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
                                  "Deviance",
                                  "Residual Deviance df",
                                  "Residual Deviance",
-                                 "p value")) %>%
+                                 "p value")) |> 
       kableExtra::kable_styling(full_width = F)
       #kableExtra::collapse_rows(columns = 1:length(laggroup), valign = "top")
   }
