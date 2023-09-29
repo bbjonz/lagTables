@@ -478,7 +478,6 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
     #print(dplyr::left_join(fit.out, stats.out))
     #stop()
     
-        
     dplyr::left_join(fit.out, stats.out) %>%
       knitr::kable(digits = 2, escape = F, format="html", 
                    col.names = c(laggroup,
