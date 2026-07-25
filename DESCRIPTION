@@ -1,0 +1,27 @@
+Package: lagTables
+Title: Lag Sequential Analysis Tables and Plots
+Version: 0.0.0.9000
+Authors@R: person("Joseph", "Bonito", email = "jbonito@email.arizona.edu", role = c("aut", "cre"))
+Description: Computes lag sequential statistics for categorical event
+    sequence data -- transition probability tables, log-linear models of
+    lag order/stationarity, and standardized-residual plots -- and
+    renders the results as html tables, following the log-linear
+    approach to lag sequential analysis described in Poole, M. S. (2000)
+    in Poole & Van de Ven, "Organizational Change and Innovation
+    Processes."
+Depends: R (>= 4.1.0)
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports: dplyr,
+          tidyr,
+          tibble,
+          DescTools,
+          ggplot2,
+          rlang,
+          knitr,
+          kableExtra,
+          broom,
+          purrr,
+          magrittr
+Config/roxygen2/version: 8.0.0
