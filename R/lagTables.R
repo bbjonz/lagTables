@@ -114,11 +114,15 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
                      escape = F) %>%
         kableExtra::kable_styling(bootstrap_options = c("striped", "hover"),
                                   full_width = F) %>%
+        #collapse_rows() has to run *before* pack_rows() here -- calling it
+        #after inserting the pack_rows() group-header rows makes kableExtra
+        #recompute row groups in a way that silently blanks the label text
+        #on the second (and any later) pack_rows() call
+        kableExtra::collapse_rows(columns = 1, valign = "top") %>%
         kableExtra::pack_rows("Observed Frequencies\n(Expected Frequencies)", 1,
                               numcodes) %>%
         kableExtra::pack_rows("Transitional Probablities\n(Standardized Residuals)",
                               numcodes+1, numcodes*2) %>%
-        kableExtra::collapse_rows(columns = 1, valign = "top") %>%
         kableExtra::add_header_above(c(" " = 2, "Target Unit" = ncol(obs.exp)))
     )
 
