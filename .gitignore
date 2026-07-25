@@ -1,0 +1,8 @@
+.DS_Store
+.Rhistory
+.RData
+Rplots.pdf
+.Rproj.user/
+
+# local Claude Code guidance, kept out of the public repo
+CLAUDE.md
