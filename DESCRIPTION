@@ -16,7 +16,6 @@ LazyData: true
 Imports: dplyr,
           tidyr,
           tibble,
-          DescTools,
           ggplot2,
           rlang,
           knitr,

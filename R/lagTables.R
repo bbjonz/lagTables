@@ -34,6 +34,44 @@ add_lags <- function(d, col, lagnum) {
   d
 }
 
+#' Format a numeric data frame to a fixed number of decimals
+#'
+#' Base R replacement for \code{DescTools::Format(x, digits = digits)}.
+#' Appropriate for statistics that can exceed 1 in magnitude (expected
+#' counts, standardized residuals, deviances) -- these should keep a
+#' leading zero when the value is less than 1 (e.g. "0.23"). See
+#' \code{fmt_bounded} for statistics naturally bounded to [-1, 1].
+#'
+#' @param x a data frame of numeric columns
+#' @param digits number of decimal places
+#' @return a data frame of character strings, same dimensions as \code{x}
+#' @noRd
+fmt_fixed <- function(x, digits = 2) {
+  out <- lapply(x, function(col) sprintf(paste0("%.", digits, "f"), col))
+  out <- as.data.frame(out, stringsAsFactors = FALSE)
+  names(out) <- names(x)
+  rownames(out) <- rownames(x)
+  out
+}
+
+#' Format a numeric data frame to a fixed number of decimals, dropping
+#' the leading zero
+#'
+#' For statistics naturally bounded to [-1, 1] -- correlations,
+#' proportions, transition probabilities -- where ".23" is the usual
+#' convention rather than "0.23". Not appropriate for statistics that
+#' can exceed 1 in magnitude; use \code{fmt_fixed} for those.
+#'
+#' @param x a data frame of numeric columns
+#' @param digits number of decimal places
+#' @return a data frame of character strings, same dimensions as \code{x}
+#' @noRd
+fmt_bounded <- function(x, digits = 2) {
+  out <- fmt_fixed(x, digits)
+  out[] <- lapply(out, function(col) sub("^(-?)0\\.", "\\1.", col))
+  out
+}
+
 
 #' Create Transitional Probability Tables and Plots
 #'
@@ -87,9 +125,12 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
       chisq.test(, simulate.p.value = TRUE) -> lag.tab
 
     obs <- as.data.frame(lag.tab$observed)
-    expect <- DescTools::Format(as.data.frame(lag.tab$expected),leading = "drop", digits = 2)
-    stdres <- DescTools::Format(as.data.frame(lag.tab$stdres), leading = "drop", digits =2)
-    tr <- DescTools::Format(as.data.frame(obs/rowSums(obs)), leading = "drop", digits =2)
+    #expect/stdres are unbounded (can exceed 1) -- keep the leading zero.
+    #tr is a transition probability, always in [0,1] -- drop it, per the
+    #usual convention for bounded/correlation-like statistics
+    expect <- fmt_fixed(as.data.frame(lag.tab$expected), digits = 2)
+    stdres <- fmt_fixed(as.data.frame(lag.tab$stdres), digits = 2)
+    tr <- fmt_bounded(as.data.frame(obs/rowSums(obs)), digits = 2)
 
     mypaste <- function(x,y) paste(x, "<br>(", y, ")", sep="")
 
@@ -161,9 +202,12 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
       chisq.test(, simulate.p.value = TRUE) -> lag.tab
 
     obs <- as.data.frame(lag.tab$observed)
-    expect <- DescTools::Format(as.data.frame(lag.tab$expected),leading = "drop", digits = 2)
-    stdres <- DescTools::Format(as.data.frame(lag.tab$stdres), leading = "drop", digits =2)
-    tr <- DescTools::Format(as.data.frame(obs/rowSums(obs)), leading = "drop", digits =2)
+    #expect/stdres are unbounded (can exceed 1) -- keep the leading zero.
+    #tr is a transition probability, always in [0,1] -- drop it, per the
+    #usual convention for bounded/correlation-like statistics
+    expect <- fmt_fixed(as.data.frame(lag.tab$expected), digits = 2)
+    stdres <- fmt_fixed(as.data.frame(lag.tab$stdres), digits = 2)
+    tr <- fmt_bounded(as.data.frame(obs/rowSums(obs)), digits = 2)
 
     mypaste <- function(x,y) paste(x, "<br>(", y, ")", sep="")
 
