@@ -785,7 +785,14 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
         res$screen %>%
           knitr::kable(digits = 3, caption = "Tests of Partial Association (Poole, 2000)",
                        col.names = c("Order", "Term", "df", "Partial Chi-sq", "p value")) %>%
-          kableExtra::kable_styling(full_width = FALSE)
+          kableExtra::kable_styling(full_width = FALSE) %>%
+          kableExtra::add_footnote(c(
+            "Order: the Markov order tested (order k = does lag_k add explanatory power beyond order k-1).",
+            "Term: the k+1-way interaction (lag0:lag1:...:lag_k) whose partial association is tested.",
+            "df / Partial Chi-sq / p value: likelihood-ratio test of that term, holding all other order-k terms fixed (Poole, 2000).",
+            sprintf("Best-fitting model: order %d (highest order whose own term is significant at alpha = %.3g).",
+                    res$order, alpha)
+          ), notation = "none")
       )
     }
 
@@ -811,7 +818,15 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
                      caption = "Best-Fitting Order by Group (Poole, 2000, partial-association procedure)",
                      col.names = c(laggroup, "Order", "Order's own p", "Next order's p",
                                    "Next order tested?")) %>%
-        kableExtra::kable_styling(full_width = FALSE)
+        kableExtra::kable_styling(full_width = FALSE) %>%
+        kableExtra::add_footnote(c(
+          sprintf("%s: the grouping level (lags reset, and order is flagged separately, at each level's start).", laggroup),
+          "Order: that group's best-fitting Markov order -- the highest order whose own defining term is significant, per Poole's (2000) tests of partial association.",
+          "Order's own p: significance of the flagged order's term (order is flagged only when this is <= alpha).",
+          "Next order's p: significance of the next-higher order's term -- large/non-significant confirms no need to go further; NA if not tested (see next column).",
+          "Next order tested?: FALSE means Order == maxlag, so a higher order could not be checked -- raise maxlag to test further.",
+          sprintf("Each row's Order value is that group's best-fitting model (alpha = %.3g).", alpha)
+        ), notation = "none")
     )
 
     return(invisible(out))
