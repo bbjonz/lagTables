@@ -297,7 +297,7 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
 
     fit.out <- anova(fit, test="Chisq")
 
-    suppressWarnings(
+    print(suppressWarnings(
       broom::tidy(fit.out) %>%
         knitr::kable(digits = 2, align=c("l",rep("c",5)),
                      col.names = c("Model",
@@ -306,7 +306,7 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
                                    "Residual Deviance df",
                                    "Residual Deviance",
                                    "p value")) %>%
-        kableExtra::kable_styling(full_width = F))
+        kableExtra::kable_styling(full_width = F)))
 
 #####Group Specified#####
   } else {
@@ -333,27 +333,29 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
                                                collapse=" * "), sep="~"))
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
-    lag.counts %>%
-      dplyr::arrange_at(dplyr::vars(dplyr::one_of(laggroup))) %>%
-      na.omit() %>%
-      tidyr::nest(-laggroup) %>%
-      dplyr::mutate(
-        tidied = purrr::map(data, ~
-                              glm(lag.form, family = poisson, data = .x) %>%
-                              anova(., test = "Chisq") %>%
-                              broom::tidy(.))) %>%
-      tidyr::unnest(tidied) %>%
-      dplyr::select(-data) %>% #removes the data column
+    print(
+      lag.counts %>%
+        dplyr::arrange_at(dplyr::vars(dplyr::one_of(laggroup))) %>%
+        na.omit() %>%
+        tidyr::nest(-laggroup) %>%
+        dplyr::mutate(
+          tidied = purrr::map(data, ~
+                                glm(lag.form, family = poisson, data = .x) %>%
+                                anova(., test = "Chisq") %>%
+                                broom::tidy(.))) %>%
+        tidyr::unnest(tidied) %>%
+        dplyr::select(-data) %>% #removes the data column
 
-      knitr::kable(digits = 2,
-                   col.names = c(laggroup,
-                                 "Model",
-                                 "Model df",
-                                 "Deviance",
-                                 "Residual Deviance df",
-                                 "Residual Deviance",
-                                 "p value")) |>
-      kableExtra::kable_styling(full_width = F)
+        knitr::kable(digits = 2,
+                     col.names = c(laggroup,
+                                   "Model",
+                                   "Model df",
+                                   "Deviance",
+                                   "Residual Deviance df",
+                                   "Residual Deviance",
+                                   "p value")) |>
+        kableExtra::kable_styling(full_width = F)
+    )
   }
 
   #end function
@@ -417,21 +419,23 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
         glm(lag.form, family = poisson, data = .) %>%
         anova(., test = "Chisq") -> stats.out
 
-    broom::tidy(stats.out) %>%
-      knitr::kable(digits = 2, escape = F, format="html",
-                   col.names = c(
-                                 "Model",
-                                 "Model df",
-                                 "Deviance",
-                                 "Residual Deviance df",
-                                 "Residual Deviance",
-                                 "p value")) %>%
-      kableExtra::kable_styling(full_width = F) %>%
-      kableExtra::add_footnote(paste0("Note: Model deviance = ",
-                                      round(broom::glance(fit.out)$deviance,2),", p = ",
-                                      round(pchisq(broom::glance(fit.out)$deviance,
-                                             df = broom::glance(fit.out)$df.residual,
-                                             lower.tail = F),2),". See Poole (2000)."))
+    print(
+      broom::tidy(stats.out) %>%
+        knitr::kable(digits = 2, escape = F, format="html",
+                     col.names = c(
+                                   "Model",
+                                   "Model df",
+                                   "Deviance",
+                                   "Residual Deviance df",
+                                   "Residual Deviance",
+                                   "p value")) %>%
+        kableExtra::kable_styling(full_width = F) %>%
+        kableExtra::add_footnote(paste0("Note: Model deviance = ",
+                                        round(broom::glance(fit.out)$deviance,2),", p = ",
+                                        round(pchisq(broom::glance(fit.out)$deviance,
+                                               df = broom::glance(fit.out)$df.residual,
+                                               lower.tail = F),2),". See Poole (2000)."))
+    )
     #ends non-group function
 
 #####Grouping Variable#####
@@ -496,19 +500,21 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
       dplyr::mutate(devp.mod = paste0(round(deviance,2),"<br>(p. = ",round(model.p),2,")")) %>%
       dplyr::select(laggroup, devp.mod) -> fit.out
 
-    dplyr::left_join(fit.out, stats.out) %>%
-      knitr::kable(digits = 2, escape = F, format="html",
-                   col.names = c(laggroup,
-                                 "Model Deviance",
-                                 "Model",
-                                 "Model df",
-                                 "Deviance",
-                                 "Residual Deviance df",
-                                 "Residual Deviance",
-                                 "p value")) %>%
-      kableExtra::kable_styling(full_width = F) %>%
-      kableExtra::collapse_rows(columns = 1:2, valign = "top") %>%
-      kableExtra::add_footnote("Note: Model deviance is the test for stationarity as described in Poole (2000)")
+    print(
+      dplyr::left_join(fit.out, stats.out) %>%
+        knitr::kable(digits = 2, escape = F, format="html",
+                     col.names = c(laggroup,
+                                   "Model Deviance",
+                                   "Model",
+                                   "Model df",
+                                   "Deviance",
+                                   "Residual Deviance df",
+                                   "Residual Deviance",
+                                   "p value")) %>%
+        kableExtra::kable_styling(full_width = F) %>%
+        kableExtra::collapse_rows(columns = 1:2, valign = "top") %>%
+        kableExtra::add_footnote("Note: Model deviance is the test for stationarity as described in Poole (2000)")
+    )
 
     #ends group function
     }
@@ -600,19 +606,21 @@ hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests fo
     glm(lag.form, family = poisson, data = .) %>%
     anova(., test = "Chisq") -> stats.out
 
-  broom::tidy(stats.out) %>%
-    knitr::kable(digits = 2, escape = F, format="html", caption = title,
-                 col.names = c(
-                               "Model",
-                               "Model df",
-                               "Deviance",
-                               "Residual Deviance df",
-                               "Residual Deviance",
-                               "p value")) %>%
-    kableExtra::kable_styling(full_width = F) %>%
-    kableExtra::add_footnote(paste0("Note: Tests whether the lag structure differs across ",
-                                    laggroup, " -- the highest-order lag-by-group interaction. ",
-                                    "See Poole (2000)."))
+  print(
+    broom::tidy(stats.out) %>%
+      knitr::kable(digits = 2, escape = F, format="html", caption = title,
+                   col.names = c(
+                                 "Model",
+                                 "Model df",
+                                 "Deviance",
+                                 "Residual Deviance df",
+                                 "Residual Deviance",
+                                 "p value")) %>%
+      kableExtra::kable_styling(full_width = F) %>%
+      kableExtra::add_footnote(paste0("Note: Tests whether the lag structure differs across ",
+                                      laggroup, " -- the highest-order lag-by-group interaction. ",
+                                      "See Poole (2000)."))
+  )
 
   #end function
 }
