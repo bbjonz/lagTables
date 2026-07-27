@@ -786,6 +786,7 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
           knitr::kable(digits = 3, caption = "Tests of Partial Association (Poole, 2000)",
                        col.names = c("Order", "Term", "df", "Partial Chi-sq", "p value")) %>%
           kableExtra::kable_styling(full_width = FALSE) %>%
+          kableExtra::row_spec(0, extra_css = "border-top: 1px solid black;") %>%
           kableExtra::row_spec(nrow(res$screen), extra_css = "border-bottom: 1px solid black;") %>%
           kableExtra::add_footnote(c(
             "Order: the Markov order tested (order k = does lag_k add explanatory power beyond order k-1).",
@@ -820,6 +821,7 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
                      col.names = c(laggroup, "Order", "Order's own p", "Next order's p",
                                    "Next order tested?")) %>%
         kableExtra::kable_styling(full_width = FALSE) %>%
+        kableExtra::row_spec(0, extra_css = "border-top: 1px solid black;") %>%
         kableExtra::row_spec(nrow(out), extra_css = "border-bottom: 1px solid black;") %>%
         kableExtra::add_footnote(c(
           "Order: that group's best-fitting Markov order -- the highest order whose own defining term is significant, per Poole's (2000) tests of partial association.",
