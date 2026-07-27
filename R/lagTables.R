@@ -515,3 +515,104 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
 
   #end function
 }
+
+
+#' Tests homogeneity of sequential structure across groups
+#'
+#' Requires a vector of sequential data and a grouping variable (e.g.
+#' separate meetings/sessions). Unlike \code{shmodels()}, which splits each
+#' sequence in half to test whether structure holds constant over time,
+#' \code{hommodels()} fits a single joint log-linear model across all
+#' groups and tests whether the lag structure itself differs between
+#' groups (the highest-order lag-by-group interaction) -- e.g. whether
+#' the same transition pattern holds across several meetings that share
+#' the same identified lag order. Per Poole (2000), \code{lagnum} should
+#' include one lag beyond the order already identified for the sequences
+#' being tested (e.g. \code{lagnum=2} for sequences with an identified
+#' lag1 structure, \code{lagnum=3} for lag2), so the partial/control term
+#' is present in the model. Since there is no such thing as homogeneity
+#' with no groups to compare, \code{laggroup} is required (unlike the
+#' other functions in this package, where it is optional).
+#'
+#' @param d dataframe containing sequential vector
+#' @param lagcol vector in dataframe containing sequential vector
+#' @param laggroup vector in dataframe containing the grouping variable
+#'   whose levels are tested for homogeneity (e.g. \code{"Meeting"}).
+#'   Required -- lags are also reset at each level's start, so this same
+#'   variable should identify separate sequences.
+#' @param lagnum number of lags. Default is 1
+#' @param title caption for table
+#' @return Table with the log-linear homogeneity test (sequential
+#'   \code{anova}) for the lag structure across \code{laggroup} levels
+#' @export
+
+hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests for Log Linear Models") {
+
+  options(scipen = 999, warn = -1)
+
+  #make sure sequential data column exists
+  if(length(d[[lagcol]])==0) {stop("The variable does not exist in your data frame")}
+
+  #homogeneity is a comparison across groups, so a group variable is
+  #always required (unlike trprobs/lagmodels/shmodels, where it's optional)
+  if(missing(laggroup) || length(d[[laggroup]])==0) {
+    stop("A grouping variable (laggroup) is required to test homogeneity across groups")
+  }
+
+  #define magrittr pipe
+  `%>%` <- magrittr::`%>%`
+
+  #handles a weird quoting issue with multiple calls to
+  #the same var in dplyr
+  laggroup2 <- rlang::ensyms(laggroup)
+
+  #lags are computed within each laggroup level so they don't bleed
+  #across group boundaries (e.g. from the end of one meeting into the
+  #start of the next) -- laggroup does double duty here as both the
+  #lag-reset boundary and the factor whose homogeneity is being tested
+  lag.counts <- d %>%
+    dplyr::select(lagcol, laggroup) %>%
+    dplyr::group_by(!!!laggroup2) %>%
+    dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
+    add_lags("lag0", lagnum) %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by_all() %>%
+    dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
+    as.data.frame()
+
+  lag.counts %>%
+    dplyr::select(-freq, -dplyr::all_of(laggroup)) -> lag.names
+
+  #laggroup is treated as categorical (as.factor) since it identifies
+  #discrete groups (e.g. meeting number), not a continuous predictor
+  grp <- paste0("as.factor(", laggroup, ")")
+  post.form <- paste(colnames(lag.names), collapse = ":")
+  pre.form <- paste("freq", paste(colnames(lag.names), collapse = "*"), sep = "~")
+  #saturated on the lag terms and laggroup, minus the single highest-order
+  #interaction (all lags together with laggroup) -- that term has no
+  #residual df to test against, same logic as shmodels()'s time12 model
+  lag.form <- as.formula(paste0(pre.form, " * ", grp, " - ", post.form, ":", grp))
+
+  options(knitr.kable.NA = '')
+
+  lag.counts %>%
+    na.omit() %>%
+    glm(lag.form, family = poisson, data = .) %>%
+    anova(., test = "Chisq") -> stats.out
+
+  broom::tidy(stats.out) %>%
+    knitr::kable(digits = 2, escape = F, format="html", caption = title,
+                 col.names = c(
+                               "Model",
+                               "Model df",
+                               "Deviance",
+                               "Residual Deviance df",
+                               "Residual Deviance",
+                               "p value")) %>%
+    kableExtra::kable_styling(full_width = F) %>%
+    kableExtra::add_footnote(paste0("Note: Tests whether the lag structure differs across ",
+                                    laggroup, " -- the highest-order lag-by-group interaction. ",
+                                    "See Poole (2000)."))
+
+  #end function
+}
