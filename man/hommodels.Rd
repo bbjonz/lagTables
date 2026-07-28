@@ -9,6 +9,7 @@ hommodels(
   lagcol,
   laggroup,
   lagnum = 1,
+  depth = lagnum,
   title = "Homogeneity Tests for Log Linear Models"
 )
 }
@@ -22,7 +23,24 @@ whose levels are tested for homogeneity (e.g. \code{"Meeting"}).
 Required -- lags are also reset at each level's start, so this same
 variable should identify separate sequences.}
 
-\item{lagnum}{number of lags. Default is 1}
+\item{lagnum}{number of lags to include in the fitted model's formula.
+Default is 1}
+
+\item{depth}{number of lags to build the underlying frequency table
+at -- must be \code{>= lagnum}. Default is \code{lagnum} (a fresh
+table no deeper than the formula needs). Set higher to reproduce a
+convention where several groups being compared for homogeneity share
+one table built at the deepest lag any of them needs (e.g. Poole's/
+this package's own worked example project, where every context's
+homogeneity model was originally fit against one table built at the
+overall deepest lag, even for contexts whose formula didn't reference
+the deepest column) -- because Poisson deviance depends on how finely
+the data are disaggregated (not just on which terms are in the
+formula), a table built deeper than the formula needs changes the
+model's deviance even though the extra lag column is never
+mentioned in \code{lag.form} and residual df is unaffected. See this
+package's own CLAUDE.md and the SB project's CLAUDE.md ("table-
+construction discrepancy") for the discovery of this behavior.}
 
 \item{title}{caption for table}
 }

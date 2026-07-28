@@ -4,7 +4,7 @@
 \alias{bestorder}
 \title{Flag the best-fitting Markov order via tests of partial association}
 \usage{
-bestorder(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05)
+bestorder(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05, depth = NULL)
 }
 \arguments{
 \item{d}{dataframe containing the sequential vector}
@@ -22,6 +22,16 @@ Default \code{""} (no grouping -- one sequence).}
 Default .05 -- tighten (e.g. to .01 or lower) for very large samples,
 where classical tests have high power to flag substantively trivial
 higher-order terms (Poole, 2000, pp.15-16).}
+
+\item{depth}{if set, every order k = 1..maxlag is tested against ONE
+shared table built once at this depth, instead of each order's own
+freshly re-aggregated minimal table (the default, \code{NULL}).
+Reproduces a convention where several orders/groups being compared
+share one table built at the deepest lag any of them needs -- see
+\code{\link{hommodels}}'s \code{depth} parameter for the underlying
+reason this can change results (Poisson deviance depends on row
+granularity, not just on which terms are in the formula). Typically
+set to \code{maxlag} when used.}
 }
 \value{
 Invisibly, a list (ungrouped) or data frame (grouped) with the

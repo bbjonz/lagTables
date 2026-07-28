@@ -264,16 +264,23 @@ trprobs <- function(d, lagvar, laggroup=NULL, lagnum=1, plots=0, dname="",
 #' @param d dataframe containing sequential vector
 #' @param lagcol vector in dataframe containing sequential vector
 #' @param laggroup vector in dataframe containing grouping variable.  Default is empty (no groups)
-#' @param lagnum number of lags. Default is 1
+#' @param lagnum number of lags to include in the fitted model's formula.
+#'   Default is 1
+#' @param depth number of lags to build the underlying frequency table
+#'   at -- must be \code{>= lagnum}. Default is \code{lagnum}. See
+#'   \code{\link{hommodels}}'s \code{depth} parameter for why this can
+#'   matter (a table built deeper than the formula needs changes Poisson
+#'   deviance even when the extra column is never in the formula).
 #' @param title caption for table
 #' @return Table with log linear estimates for lag sequential data
 #' @export
 
-lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stationarity", lagnum=1) {
+lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stationarity", lagnum=1, depth=lagnum) {
 
   options(scipen = 999, warn = -1)
 
   if(length(lagcol)==0) {stop("The variable does not exist in your data frame")}
+  if(depth < lagnum) {stop("depth must be >= lagnum")}
 
   #define magrittr pipe
   `%>%` <- magrittr::`%>%`
@@ -284,13 +291,17 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
     lag.counts <- d %>%
       dplyr::select(dplyr::all_of(lagcol)) %>%
       dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
-      add_lags("lag0", lagnum) %>%
+      add_lags("lag0", depth) %>%
       dplyr::group_by_all() %>%
       dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
       as.data.frame()
 
-    #the ncol routine removes freq from the end of the formula
-    lag.form <- as.formula(paste("freq", paste(colnames(lag.counts[-(ncol(lag.counts))]),
+    #only lag0..lag{lagnum} enter the formula -- deeper columns
+    #(lag{lagnum+1}..lag{depth}) stay in lag.counts but unreferenced,
+    #matching hommodels()'s depth convention
+    all_lag_cols <- grep("^lag[0-9]+$", names(lag.counts), value = TRUE)
+    all_lag_cols <- all_lag_cols[order(as.integer(sub("^lag", "", all_lag_cols)))]
+    lag.form <- as.formula(paste("freq", paste(all_lag_cols[seq_len(lagnum + 1)],
                                                collapse=" * "), sep="~"))
 
     fit <- glm(lag.form, data=lag.counts, family=poisson)
@@ -320,23 +331,28 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
       dplyr::select(dplyr::all_of(c(lagcol, laggroup))) %>%
       dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
       dplyr::group_by(dplyr::across(dplyr::all_of(laggroup))) %>%
-      add_lags("lag0", lagnum) %>%
+      add_lags("lag0", depth) %>%
       dplyr::ungroup() %>%
       dplyr::group_by_all() %>%
       dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
       as.data.frame()
 
-    lag.counts %>%
-      dplyr::select(-freq, -dplyr::all_of(laggroup)) -> lag.names
+    all_lag_cols <- grep("^lag[0-9]+$", names(lag.counts), value = TRUE)
+    all_lag_cols <- all_lag_cols[order(as.integer(sub("^lag", "", all_lag_cols)))]
+    lag.names <- lag.counts[, all_lag_cols[seq_len(lagnum + 1)], drop = FALSE]
 
     lag.form <- as.formula(paste("freq", paste(colnames(lag.names),
                                                collapse=" * "), sep="~"))
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+    #note: no blanket na.omit() here -- when depth > lagnum, lag.counts
+    #carries deeper lag columns not referenced by lag.form, which can be
+    #NA near each group's start (shift()'s edge effect); dropping rows for
+    #that reason alone would be wrong. glm()'s default na.action already
+    #omits based only on the columns lag.form references.
     print(
       lag.counts %>%
         dplyr::arrange_at(dplyr::vars(dplyr::one_of(laggroup))) %>%
-        na.omit() %>%
         tidyr::nest(-laggroup) %>%
         dplyr::mutate(
           tidied = purrr::map(data, ~
@@ -369,12 +385,18 @@ lagmodels <- function(d, lagcol, laggroup="", title="Log Linear Models for Stati
 #' @param d dataframe containing sequential vector
 #' @param lagcol vector in dataframe containing sequential vector
 #' @param laggroup vector in dataframe containing grouping variable.  Default is empty (no groups)
-#' @param lagnum number of lags. Default is 1
+#' @param lagnum number of lags to include in the fitted model's formula.
+#'   Default is 1
+#' @param depth number of lags to build the underlying frequency table
+#'   at -- must be \code{>= lagnum}. Default is \code{lagnum}. See
+#'   \code{\link{hommodels}}'s \code{depth} parameter for why this can
+#'   matter (a table built deeper than the formula needs changes Poisson
+#'   deviance even when the extra column is never in the formula).
 #' @param title caption for table
 #' @return Table with log linear estimates for lag sequential data
 #' @export
 
-shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Linear Models", lagnum=1) {
+shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Linear Models", lagnum=1, depth=lagnum) {
 
   #https://data.library.virginia.edu/an-introduction-to-loglinear-models/
 
@@ -382,6 +404,7 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
 
   #make sure sequential data column exists
   if(length(d[[lagcol]])==0) {stop("The variable does not exist in your data frame")}
+  if(depth < lagnum) {stop("depth must be >= lagnum")}
 
   #define magrittr pipe
   `%>%` <- magrittr::`%>%`
@@ -393,13 +416,16 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
       dplyr::select(dplyr::all_of(lagcol)) %>%
       dplyr::mutate(time12 = ifelse(dplyr::row_number() < dplyr::n()/2, 1, 2)) %>%
       dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
-      add_lags("lag0", lagnum) %>%
+      add_lags("lag0", depth) %>%
       dplyr::group_by_all() %>%
       dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
       as.data.frame()
 
-    lag.counts %>%
-      dplyr::select(-freq, -time12) -> lag.names
+    #only lag0..lag{lagnum} enter the formula -- deeper columns stay in
+    #lag.counts but unreferenced, matching hommodels()'s depth convention
+    all_lag_cols <- grep("^lag[0-9]+$", names(lag.counts), value = TRUE)
+    all_lag_cols <- all_lag_cols[order(as.integer(sub("^lag", "", all_lag_cols)))]
+    lag.names <- lag.counts[, all_lag_cols[seq_len(lagnum + 1)], drop = FALSE]
 
     post.form <- paste(colnames(lag.names), collapse  = ":")
     post0.form <- paste(colnames(lag.names[-length(lag.names)]), collapse  = ":")
@@ -410,12 +436,13 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
 
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+    #note: no blanket na.omit() here -- see the depth-related comment in
+    #hommodels(); glm()'s default na.action already omits based only on
+    #the columns each formula references.
     lag.counts %>%
-      na.omit() %>%
         glm(model.form, family = poisson, data = .) -> fit.out
 
     lag.counts %>%
-      na.omit() %>%
         glm(lag.form, family = poisson, data = .) %>%
         anova(., test = "Chisq") -> stats.out
 
@@ -456,14 +483,15 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
       dplyr::group_by(!!!laggroup2) %>%
       dplyr::mutate(time12 = ifelse(dplyr::row_number() < dplyr::n()/2, 1, 2)) %>%
       dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
-      add_lags("lag0", lagnum) %>%
+      add_lags("lag0", depth) %>%
       dplyr::ungroup() %>%
       dplyr::group_by_all() %>%
       dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
       as.data.frame()
 
-    lag.counts %>%
-      dplyr::select(-freq, -dplyr::all_of(laggroup), -time12) -> lag.names
+    all_lag_cols <- grep("^lag[0-9]+$", names(lag.counts), value = TRUE)
+    all_lag_cols <- all_lag_cols[order(as.integer(sub("^lag", "", all_lag_cols)))]
+    lag.names <- lag.counts[, all_lag_cols[seq_len(lagnum + 1)], drop = FALSE]
 
     post.form <- paste(colnames(lag.names), collapse  = ":")
     post0.form <- paste(colnames(lag.names[-length(lag.names)]), collapse  = ":")
@@ -474,9 +502,9 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
 
     options(knitr.kable.NA = '')
     #https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+    #note: no blanket na.omit() here -- see the depth-related comment above
     lag.counts %>%
       dplyr::arrange_at(dplyr::vars(dplyr::one_of(laggroup))) %>%
-      na.omit() %>%
       tidyr::nest(-laggroup) %>%
       dplyr::mutate(
         model.fit = purrr::map(data, ~ glm(model.form, family = poisson, data = .x)),
@@ -546,13 +574,30 @@ shmodels <- function(d, lagcol, laggroup="", title="Homogeniety Tests for Log Li
 #'   whose levels are tested for homogeneity (e.g. \code{"Meeting"}).
 #'   Required -- lags are also reset at each level's start, so this same
 #'   variable should identify separate sequences.
-#' @param lagnum number of lags. Default is 1
+#' @param lagnum number of lags to include in the fitted model's formula.
+#'   Default is 1
+#' @param depth number of lags to build the underlying frequency table
+#'   at -- must be \code{>= lagnum}. Default is \code{lagnum} (a fresh
+#'   table no deeper than the formula needs). Set higher to reproduce a
+#'   convention where several groups being compared for homogeneity share
+#'   one table built at the deepest lag any of them needs (e.g. Poole's/
+#'   this package's own worked example project, where every context's
+#'   homogeneity model was originally fit against one table built at the
+#'   overall deepest lag, even for contexts whose formula didn't reference
+#'   the deepest column) -- because Poisson deviance depends on how finely
+#'   the data are disaggregated (not just on which terms are in the
+#'   formula), a table built deeper than the formula needs changes the
+#'   model's deviance even though the extra lag column is never
+#'   mentioned in \code{lag.form} and residual df is unaffected. See this
+#'   package's own CLAUDE.md and the SB project's CLAUDE.md ("table-
+#'   construction discrepancy") for the discovery of this behavior.
 #' @param title caption for table
 #' @return Table with the log-linear homogeneity test (sequential
 #'   \code{anova}) for the lag structure across \code{laggroup} levels
 #' @export
 
-hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests for Log Linear Models") {
+hommodels <- function(d, lagcol, laggroup, lagnum=1, depth=lagnum,
+                       title="Homogeneity Tests for Log Linear Models") {
 
   options(scipen = 999, warn = -1)
 
@@ -565,6 +610,8 @@ hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests fo
     stop("A grouping variable (laggroup) is required to test homogeneity across groups")
   }
 
+  if (depth < lagnum) stop("depth must be >= lagnum")
+
   #define magrittr pipe
   `%>%` <- magrittr::`%>%`
 
@@ -575,19 +622,25 @@ hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests fo
   #lags are computed within each laggroup level so they don't bleed
   #across group boundaries (e.g. from the end of one meeting into the
   #start of the next) -- laggroup does double duty here as both the
-  #lag-reset boundary and the factor whose homogeneity is being tested
+  #lag-reset boundary and the factor whose homogeneity is being tested.
+  #Built to `depth`, not `lagnum` -- see the depth param doc above; when
+  #depth==lagnum (the default) this is unchanged from before.
   lag.counts <- d %>%
     dplyr::select(lagcol, laggroup) %>%
     dplyr::group_by(!!!laggroup2) %>%
     dplyr::rename(lag0 = dplyr::all_of(lagcol)) %>%
-    add_lags("lag0", lagnum) %>%
+    add_lags("lag0", depth) %>%
     dplyr::ungroup() %>%
     dplyr::group_by_all() %>%
     dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
     as.data.frame()
 
-  lag.counts %>%
-    dplyr::select(-freq, -dplyr::all_of(laggroup)) -> lag.names
+  #only lag0..lag{lagnum} enter the model formula -- any deeper columns
+  #(lag{lagnum+1}..lag{depth}) stay in lag.counts (preserving the table's
+  #row granularity/deviance) but are never referenced by lag.form
+  all_lag_cols <- grep("^lag[0-9]+$", names(lag.counts), value = TRUE)
+  all_lag_cols <- all_lag_cols[order(as.integer(sub("^lag", "", all_lag_cols)))]
+  lag.names <- lag.counts[, all_lag_cols[seq_len(lagnum + 1)], drop = FALSE]
 
   #laggroup is treated as categorical (as.factor) since it identifies
   #discrete groups (e.g. meeting number), not a continuous predictor
@@ -601,8 +654,13 @@ hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests fo
 
   options(knitr.kable.NA = '')
 
+  #note: no explicit na.omit(lag.counts) here -- when depth > lagnum,
+  #lag.counts carries deeper lag columns not referenced by lag.form, and
+  #those can be NA near each group's start (shift()'s edge effect); a
+  #blanket na.omit() would incorrectly drop rows for that reason alone.
+  #glm()'s default na.action already omits based only on the model
+  #frame (the columns lag.form actually references), which is what we want.
   lag.counts %>%
-    na.omit() %>%
     glm(lag.form, family = poisson, data = .) %>%
     anova(., test = "Chisq") -> stats.out
 
@@ -654,22 +712,39 @@ hommodels <- function(d, lagcol, laggroup, lagnum=1, title="Homogeneity Tests fo
 #that degeneracy and matches Poole's more fundamental stated logic; it also
 #avoids the SB project's own Area/Area2 lesson (never leave a table split
 #by lag columns the current formula doesn't use).
+#
+#That per-depth default is not, however, numerically equivalent to a
+#convention (found to be this project's own -- see the SB project's
+#CLAUDE.md, "table-construction discrepancy") of testing every order
+#against one shared table built once at the deepest lag any of them
+#needs. The optional `depth` argument reproduces that convention: when
+#set, ONE shared table is built at that depth and reused for every k,
+#matching hommodels()'s/shmodels()'s/lagmodels()'s own `depth` parameter
+#and the reasoning documented there (Poisson deviance depends on row
+#granularity, not just on which terms are in the formula).
 #noRd
-order_one <- function(seq_vec, maxlag, alpha) {
+order_one <- function(seq_vec, maxlag, alpha, depth = NULL) {
 
   lag_names <- paste0("lag", 0:maxlag)
 
-  build_counts <- function(k) {
+  build_counts <- function(k, omit_na = TRUE) {
     y <- data.frame(lag0 = seq_vec)
     for (i in seq_len(k)) y[[paste0("lag", i)]] <- dplyr::lag(y$lag0, i)
     y <- y[, paste0("lag", 0:k), drop = FALSE]
-    y <- stats::na.omit(y)
+    #omit_na=FALSE is used only for the shared deep table (depth path):
+    #dropping rows for being NA in a column irrelevant to a shallower
+    #order's own formula would shrink N below what that order's test
+    #should see. glm()'s default na.action still drops rows lacking the
+    #columns each order's own formula actually references.
+    if (omit_na) y <- stats::na.omit(y)
     as.data.frame(dplyr::summarise(dplyr::group_by_all(y), freq = dplyr::n(), .groups = "drop"))
   }
 
+  shared_counts <- if (!is.null(depth)) build_counts(depth, omit_na = FALSE) else NULL
+
   #### screen order incrementally, one depth at a time ####
   screen <- do.call(rbind, lapply(seq_len(maxlag), function(k) {
-    counts.k <- build_counts(k)
+    counts.k <- if (!is.null(shared_counts)) shared_counts else build_counts(k)
     vars.k <- lag_names[1:(k + 1)]
     top.term <- paste(vars.k, collapse = ":")
     sat.form.k <- stats::as.formula(paste("freq ~", paste(vars.k, collapse = " * ")))
@@ -757,6 +832,15 @@ order_one <- function(seq_vec, maxlag, alpha) {
 #'   Default .05 -- tighten (e.g. to .01 or lower) for very large samples,
 #'   where classical tests have high power to flag substantively trivial
 #'   higher-order terms (Poole, 2000, pp.15-16).
+#' @param depth if set, every order k = 1..maxlag is tested against ONE
+#'   shared table built once at this depth, instead of each order's own
+#'   freshly re-aggregated minimal table (the default, \code{NULL}).
+#'   Reproduces a convention where several orders/groups being compared
+#'   share one table built at the deepest lag any of them needs -- see
+#'   \code{\link{hommodels}}'s \code{depth} parameter for the underlying
+#'   reason this can change results (Poisson deviance depends on row
+#'   granularity, not just on which terms are in the formula). Typically
+#'   set to \code{maxlag} when used.
 #' @return Invisibly, a list (ungrouped) or data frame (grouped) with the
 #'   flagged order, its own partial-association p value, and the next
 #'   order's p value (confirming no need to go further); also prints a
@@ -764,7 +848,7 @@ order_one <- function(seq_vec, maxlag, alpha) {
 #'   \code{knitr::kable}.
 #' @export
 
-bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
+bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05, depth = NULL) {
 
   options(scipen = 999, warn = -1)
 
@@ -774,7 +858,7 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
 
   if (missing(laggroup) || length(laggroup) == 0 || identical(laggroup, "")) {
 
-    res <- order_one(d[[lagcol]], maxlag = maxlag, alpha = alpha)
+    res <- order_one(d[[lagcol]], maxlag = maxlag, alpha = alpha, depth = depth)
 
     cat(sprintf("Best-fitting order: %d\n", res$order))
     if (res$order > 0) {
@@ -815,7 +899,7 @@ bestorder <- function(d, lagcol, laggroup = "", maxlag = 3, alpha = 0.05) {
     groups <- unique(d[[laggroup]])
     out <- lapply(groups, function(g) {
       sub <- d[d[[laggroup]] == g, , drop = FALSE]
-      r <- order_one(sub[[lagcol]], maxlag = maxlag, alpha = alpha)
+      r <- order_one(sub[[lagcol]], maxlag = maxlag, alpha = alpha, depth = depth)
       data.frame(group = g, order = r$order, own_p = r$own_p,
                  next_p = r$next_p, next_checked = r$next_checked)
     })

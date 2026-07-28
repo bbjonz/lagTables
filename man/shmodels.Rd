@@ -12,7 +12,8 @@ shmodels(
   lagcol,
   laggroup = "",
   title = "Homogeniety Tests for Log Linear Models",
-  lagnum = 1
+  lagnum = 1,
+  depth = lagnum
 )
 }
 \arguments{
@@ -24,7 +25,14 @@ shmodels(
 
 \item{title}{caption for table}
 
-\item{lagnum}{number of lags. Default is 1}
+\item{lagnum}{number of lags to include in the fitted model's formula.
+Default is 1}
+
+\item{depth}{number of lags to build the underlying frequency table
+at -- must be \code{>= lagnum}. Default is \code{lagnum}. See
+\code{\link{hommodels}}'s \code{depth} parameter for why this can
+matter (a table built deeper than the formula needs changes Poisson
+deviance even when the extra column is never in the formula).}
 }
 \value{
 Table with log linear estimates for lag sequential data
